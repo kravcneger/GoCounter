@@ -8,12 +8,8 @@ import (
 	"time"
 )
 
-func ValidServer(bodyResponce string, timeOut int) {
-	time.Sleep(time.Duration(timeOut) * time.Millisecond)
-}
-
 func TimeOutServer(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusGatewayTimeout)
+	time.Sleep(2000 * time.Millisecond)
 }
 
 func BadServer(w http.ResponseWriter, r *http.Request) {
@@ -34,7 +30,7 @@ func TestGoCounter(t *testing.T) {
 	links = append(links, ts1.URL)
 
 	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(1000 * time.Millisecond)
+		time.Sleep(700 * time.Millisecond)
 		w.Write([]byte(" I'am second server"))
 		w.Write([]byte("Five occurrences Go Go Go Go Go"))
 		return
@@ -53,8 +49,8 @@ func TestGoCounter(t *testing.T) {
 	expected := map[string]int{
 		ts1.URL:           2,
 		ts2.URL:           5,
-		badServer.URL:     0,
-		timeOutServer.URL: 0,
+		badServer.URL:     StatusBadRequest,
+		timeOutServer.URL: StatusRequestTimeout,
 	}
 
 	result := GoCounter(links)
@@ -63,6 +59,5 @@ func TestGoCounter(t *testing.T) {
 	if !eq {
 		t.Errorf("Expected %v instance of %v", expected, result)
 	}
-
-	printResult(result)
+	printCountOfGo(links)
 }

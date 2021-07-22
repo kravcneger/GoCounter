@@ -9,10 +9,20 @@ import (
 	"time"
 )
 
-const MaxTimeOutInSecond = 2
+const (
+	MaxTimeOutInSecond      = 1
+	CodeOfIncorrectResponse = -1
+	StatusRequestTimeout    = -http.StatusRequestTimeout
+	StatusBadRequest        = -http.StatusBadRequest
+)
 
 func main() {
 
+}
+
+func printCountOfGo(urls []string) {
+	list := GoCounter(urls)
+	fmt.Println(stringResult(&list))
 }
 
 func GoCounter(urls []string) map[string]int {
@@ -36,7 +46,6 @@ func GoCounter(urls []string) map[string]int {
 		res[urls[i]] = <-ch
 	}
 	return res
-
 }
 
 func runParser(count chan int, url string) {
@@ -45,8 +54,7 @@ func runParser(count chan int, url string) {
 	}
 	resp, err := client.Get(url)
 	if err != nil {
-		fmt.Println(err)
-		close(count)
+		count <- StatusRequestTimeout
 		return
 	}
 	defer resp.Body.Close()
@@ -54,21 +62,33 @@ func runParser(count chan int, url string) {
 	if resp.StatusCode == http.StatusOK {
 		bodyBytes, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			fmt.Println(err)
-			close(count)
+			count <- CodeOfIncorrectResponse
 			return
 		}
 		bodyString := string(bodyBytes)
 		count <- strings.Count(bodyString, "Go")
+	} else {
+		count <- StatusBadRequest
 	}
 	close(count)
 }
 
-func printResult(data map[string]int) {
+func stringResult(data *map[string]int) string {
+	res := ""
 	sum := 0
-	for key, count := range data {
-		fmt.Println(key, ":", count)
-		sum += count
+	for key, count := range *data {
+		switch {
+		case count >= 0:
+			res += fmt.Sprintf("%s : %d \n", key, count)
+			sum += count
+
+		case count == StatusRequestTimeout:
+			res += fmt.Sprintf("%s : %s", key, "StatusRequestTimeout\n")
+
+		default:
+			res += fmt.Sprintf("%s : %s", key, "StatusBadRequest\n")
+		}
 	}
-	fmt.Println(sum)
+	res += fmt.Sprintf("count : %d \n", sum)
+	return res
 }
