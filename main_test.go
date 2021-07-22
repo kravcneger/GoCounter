@@ -22,7 +22,6 @@ func BadServer(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestGoCounter(t *testing.T) {
-	var servers []*httptest.Server
 	var links []string
 
 	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -45,9 +44,11 @@ func TestGoCounter(t *testing.T) {
 
 	badServer := httptest.NewServer(http.HandlerFunc(BadServer))
 	defer badServer.Close()
+	links = append(links, badServer.URL)
 
 	timeOutServer := httptest.NewServer(http.HandlerFunc(TimeOutServer))
 	defer timeOutServer.Close()
+	links = append(links, timeOutServer.URL)
 
 	expected := map[string]int{
 		ts1.URL:           2,
@@ -55,12 +56,6 @@ func TestGoCounter(t *testing.T) {
 		badServer.URL:     0,
 		timeOutServer.URL: 0,
 	}
-
-	for _, serv := range servers {
-		links = append(links, serv.URL)
-	}
-	links = append(links, badServer.URL)
-	links = append(links, timeOutServer.URL)
 
 	result := GoCounter(links)
 
