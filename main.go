@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -21,18 +22,21 @@ func GoCounter(urls []string) map[string]int {
 	for i := 0; i < len(urls); i++ {
 		channels = append(channels, make(chan int, 1))
 	}
-
+	var wg sync.WaitGroup
 	for i, url := range urls {
-		go runParser(channels[i], url)
+		wg.Add(1)
+		go func(ch chan int, ur string) {
+			defer wg.Done()
+			runParser(ch, ur)
+		}(channels[i], url)
 	}
+	wg.Wait()
 
-	select {
-	case <-time.After(MaxTimeOutInSecond * time.Second):
-		for i, ch := range channels {
-			res[urls[i]] = <-ch
-		}
-		return res
+	for i, ch := range channels {
+		res[urls[i]] = <-ch
 	}
+	return res
+
 }
 
 func runParser(count chan int, url string) {
