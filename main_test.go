@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"strconv"
 	"testing"
 	"time"
 )
@@ -14,7 +13,7 @@ func ValidServer(bodyResponce string, timeOut int) {
 }
 
 func TimeOutServer(w http.ResponseWriter, r *http.Request) {
-	time.Sleep(20 * time.Second)
+	w.WriteHeader(http.StatusGatewayTimeout)
 }
 
 func BadServer(w http.ResponseWriter, r *http.Request) {
@@ -24,20 +23,25 @@ func BadServer(w http.ResponseWriter, r *http.Request) {
 
 func TestGoCounter(t *testing.T) {
 	var servers []*httptest.Server
-	response := "some text Go"
-	for i := 1; i <= 5; i++ {
-		//Каждый последующий сервер будет отвечать с задержкой N*200 милисекунд и отдавать
-		//Строчку увеличенную на "some text Go"
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			time.Sleep(time.Duration(i*200) * time.Millisecond)
-			w.Write([]byte(" I'am " + strconv.Itoa(i) + " server"))
-			w.Write([]byte(response))
-			return
-		}))
-		defer ts.Close()
-		response += response
-		servers = append(servers, ts)
-	}
+	var links []string
+
+	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		w.Write([]byte(" I'am first server"))
+		w.Write([]byte("Two occurrences Go Go"))
+		return
+	}))
+	defer ts1.Close()
+	links = append(links, ts1.URL)
+
+	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(1000 * time.Millisecond)
+		w.Write([]byte(" I'am second server"))
+		w.Write([]byte("Five occurrences Go Go Go Go Go"))
+		return
+	}))
+	defer ts2.Close()
+	links = append(links, ts2.URL)
 
 	badServer := httptest.NewServer(http.HandlerFunc(BadServer))
 	defer badServer.Close()
@@ -45,12 +49,15 @@ func TestGoCounter(t *testing.T) {
 	timeOutServer := httptest.NewServer(http.HandlerFunc(TimeOutServer))
 	defer timeOutServer.Close()
 
-	var links []string
-	expected := make(map[string]int)
+	expected := map[string]int{
+		ts1.URL:           2,
+		ts2.URL:           5,
+		badServer.URL:     0,
+		timeOutServer.URL: 0,
+	}
 
-	for i, serv := range servers {
+	for _, serv := range servers {
 		links = append(links, serv.URL)
-		expected[serv.URL] = i
 	}
 	links = append(links, badServer.URL)
 	links = append(links, timeOutServer.URL)
@@ -62,4 +69,5 @@ func TestGoCounter(t *testing.T) {
 		t.Errorf("Expected %v instance of %v", expected, result)
 	}
 
+	printResult(result)
 }
