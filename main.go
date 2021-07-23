@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -55,7 +56,11 @@ func runParser(count chan int, url string) {
 	}
 	resp, err := client.Get(url)
 	if err != nil {
-		count <- StatusRequestTimeout
+		if err, ok := err.(net.Error); ok && err.Timeout() {
+			count <- StatusRequestTimeout
+		} else {
+			count <- StatusBadRequest
+		}
 		return
 	}
 	defer resp.Body.Close()
