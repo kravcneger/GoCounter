@@ -28,6 +28,8 @@ func TestGoCounter(t *testing.T) {
 	}))
 	defer ts1.Close()
 	links = append(links, ts1.URL)
+	// Duplicate
+	links = append(links, ts1.URL)
 
 	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(700 * time.Millisecond)

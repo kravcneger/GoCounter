@@ -27,6 +27,7 @@ func printCountOfGo(urls []string) {
 
 func GoCounter(urls []string) map[string]int {
 	res := make(map[string]int)
+	urls = uniqueList(&urls)
 
 	var channels []chan int
 	for i := 0; i < len(urls); i++ {
@@ -91,4 +92,16 @@ func stringResult(data *map[string]int) string {
 	}
 	res += fmt.Sprintf("count : %d \n", sum)
 	return res
+}
+
+func uniqueList(list *[]string) []string {
+	keys := make(map[string]bool)
+	uniqList := []string{}
+	for _, entry := range *list {
+		if _, value := keys[entry]; !value {
+			keys[entry] = true
+			uniqList = append(uniqList, entry)
+		}
+	}
+	return uniqList
 }
