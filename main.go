@@ -17,10 +17,6 @@ const (
 	StatusBadRequest        = -http.StatusBadRequest
 )
 
-func main() {
-
-}
-
 func printCountOfGo(urls []string) {
 	list := GoCounter(urls)
 	fmt.Println(stringResult(&list))
@@ -30,37 +26,43 @@ func GoCounter(urls []string) map[string]int {
 	res := make(map[string]int)
 	urls = uniqueList(&urls)
 
-	var channels []chan int
-	for i := 0; i < len(urls); i++ {
-		channels = append(channels, make(chan int, 1))
-	}
+	chBasket := make(chan map[string]int, len(urls))
+
 	var wg sync.WaitGroup
-	for i, url := range urls {
-		wg.Add(1)
-		go func(ch chan int, ur string) {
+	wg.Add(len(urls))
+
+	for _, url := range urls {
+		go func(ur string) {
 			defer wg.Done()
-			runParser(ch, ur)
-		}(channels[i], url)
+			runParser(chBasket, ur)
+		}(url)
 	}
 	wg.Wait()
+	close(chBasket)
 
-	for i, ch := range channels {
-		res[urls[i]] = <-ch
+	for ch := range chBasket {
+		for k, v := range ch {
+			res[k] = v
+		}
 	}
+
 	return res
 }
 
-func runParser(count chan int, url string) {
+func runParser(count chan map[string]int, url string) {
+	respond := make(map[string]int)
+
 	client := http.Client{
 		Timeout: MaxTimeOutInSecond * time.Second,
 	}
 	resp, err := client.Get(url)
 	if err != nil {
 		if err, ok := err.(net.Error); ok && err.Timeout() {
-			count <- StatusRequestTimeout
+			respond[url] = StatusRequestTimeout
 		} else {
-			count <- StatusBadRequest
+			respond[url] = StatusBadRequest
 		}
+		count <- respond
 		return
 	}
 	defer resp.Body.Close()
@@ -68,15 +70,16 @@ func runParser(count chan int, url string) {
 	if resp.StatusCode == http.StatusOK {
 		bodyBytes, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			count <- CodeOfIncorrectResponse
+			respond[url] = CodeOfIncorrectResponse
 			return
 		}
 		bodyString := string(bodyBytes)
-		count <- strings.Count(bodyString, "Go")
+		respond[url] = strings.Count(bodyString, "Go")
+		count <- respond
 	} else {
-		count <- StatusBadRequest
+		respond[url] = StatusBadRequest
+		count <- respond
 	}
-	close(count)
 }
 
 func stringResult(data *map[string]int) string {
