@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -26,25 +27,30 @@ func GoCounter(urls []string) map[string]int {
 	res := make(map[string]int)
 	urls = uniqueList(&urls)
 
-	chBasket := make(chan map[string]int, len(urls))
+	chBasket := make(chan map[string]int)
+	waitChannel := make(chan struct{}, runtime.NumCPU())
+
+	for _, url := range urls {
+		waitChannel <- struct{}{}
+		go func(u string) {
+			runParser(chBasket, u)
+			<-waitChannel
+		}(url)
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(len(urls))
+	go func() {
+		for ch := range chBasket {
+			for k, v := range ch {
+				res[k] = v
+				wg.Done()
+			}
+		}
+	}()
 
-	for _, url := range urls {
-		go func(ur string) {
-			defer wg.Done()
-			runParser(chBasket, ur)
-		}(url)
-	}
 	wg.Wait()
 	close(chBasket)
-
-	for ch := range chBasket {
-		for k, v := range ch {
-			res[k] = v
-		}
-	}
 
 	return res
 }
