@@ -28,15 +28,17 @@ func GoCounter(urls []string) map[string]int {
 	urls = uniqueList(&urls)
 
 	chBasket := make(chan map[string]int)
-	waitChannel := make(chan struct{}, runtime.NumCPU())
+	waitChannel := make(chan struct{}, runtime.NumCPU()*3)
 
-	for _, url := range urls {
-		waitChannel <- struct{}{}
-		go func(u string) {
-			runParser(chBasket, u)
-			<-waitChannel
-		}(url)
-	}
+	go func() {
+		for _, url := range urls {
+			waitChannel <- struct{}{}
+			go func(u string) {
+				runParser(chBasket, u)
+				<-waitChannel
+			}(url)
+		}
+	}()
 
 	var wg sync.WaitGroup
 	wg.Add(len(urls))
